@@ -102,10 +102,9 @@ export function DTConnectionSetting() {
 							},
 						})
 						.then(() =>
-							ToastActionCreators.open({
-								IconComponent: CircleCheckIcon,
-								key: 'DEVTOOLS_ADDRESS_SAVED',
-								content: 'Address saved',
+							ToastActionCreators.open('REVENGE_DEVTOOLS_ADDRESS_SAVED', {
+								icon: CircleCheckIcon,
+								text: 'Address saved',
 							}),
 						)
 				}
@@ -127,10 +126,9 @@ export function DTConnectionSetting() {
 							},
 						})
 						.then(() =>
-							ToastActionCreators.open({
-								IconComponent: CircleCheckIcon,
-								key: 'DEVTOOLS_ALIAS_SAVED',
-								content: 'Alias saved',
+							ToastActionCreators.open('REVENGE_DEVTOOLS_ALIAS_SAVED', {
+								icon: CircleCheckIcon,
+								text: 'Alias saved',
 							}),
 						)
 				}
@@ -162,10 +160,9 @@ export function RDTAddrSetting() {
 						},
 					})
 					.then(() =>
-						ToastActionCreators.open({
-							IconComponent: CircleCheckIcon,
-							key: 'REACT_DEVTOOLS_ADDRESS_SAVED',
-							content: 'Address saved',
+						ToastActionCreators.open('REVENGE_REACT_DEVTOOLS_ADDRESS_SAVED', {
+							icon: CircleCheckIcon,
+							text: 'Address saved',
 						}),
 					)
 			}

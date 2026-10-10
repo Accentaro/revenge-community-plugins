@@ -177,11 +177,13 @@ function openAssetDisplayAlert(
 											: () => {
 													Clipboard.setString(value)
 
-													ToastActionCreators.open({
-														key: 'ASSET_BROWSER_COPIED',
-														IconComponent: CopyIcon,
-														content: `Copied ${name} to clipboard`,
-													})
+													ToastActionCreators.open(
+														'REVENGE_ASSET_BROWSER_COPIED',
+														{
+															icon: CopyIcon,
+															text: `Copied ${name} to clipboard`,
+														},
+													)
 												}
 									}
 									subLabel={value}

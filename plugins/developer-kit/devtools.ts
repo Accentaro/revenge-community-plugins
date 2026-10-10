@@ -112,10 +112,9 @@ export function connect() {
 			api.logger.error('DevTools error:', e.reason)
 
 			asap(() => {
-				ToastActionCreators.open({
-					key: 'DEVTOOLS_ERROR',
-					IconComponent: CircleErrorIcon,
-					content: e.reason,
+				ToastActionCreators.open('REVENGE_DEVTOOLS_ERROR', {
+					icon: CircleErrorIcon,
+					text: e.reason,
 				})
 			})
 		}
