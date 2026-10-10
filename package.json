@@ -1,5 +1,5 @@
 {
-	"name": "@example/revenge-plugins",
+	"name": "@revenge-mod/revenge-community-plugins",
 	"private": true,
 	"type": "module",
 	"scripts": {

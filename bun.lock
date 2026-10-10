@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@example/revenge-plugins",
+      "name": "@revenge-mod/revenge-community-plugins",
       "dependencies": {
         "@revenge-mod/devtools-client": "^1.4.0",
         "@revenge-mod/devtools-shared": "^1.3.0",
