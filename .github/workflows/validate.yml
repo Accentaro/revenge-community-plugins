@@ -39,3 +39,18 @@ jobs:
             --base-url https://revenge.local \
             --out /tmp/index.json
           cat /tmp/index.json
+
+      - name: Upload built plugins
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugins
+          path: build/dist/*.zip
+          if-no-files-found: warn
+
+      - name: Upload generated index
+        uses: actions/upload-artifact@v7
+        with:
+          name: index
+          path: /tmp/index.json
+          if-no-files-found: error
+          archive: false
