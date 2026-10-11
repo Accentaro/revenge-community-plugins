@@ -31,6 +31,8 @@ jobs:
 
       - name: Build all plugins
         run: ./gradlew --no-daemon packageAllPlugins
+        env:
+          GITHUB_TOKEN: ${{ secrets.READ_PACKAGES_TOKEN }} # For Gradle to download the API dependency.
 
       - name: Generate index from built artifacts
         run: |
