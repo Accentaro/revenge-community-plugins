@@ -32,8 +32,15 @@ private const val BLOCK_BACKGROUND_SPAN = "com.discord.span.utilities.spannable.
  * Rows are rendered again whenever they scroll back into view, by then [cache] may have dropped their blocks.
  * So each code block node takes its highlight from [cache] once it is created (right after JS stored it),
  * and keeps it for as long as Discord keeps the node.
+ *
+ * Blocks also get a span from [taps], opening them in the viewer where their text can be selected.
  */
-internal fun hookCodeStyle(classLoader: ClassLoader, cache: HighlightCache, log: Logger): List<XC_MethodHook.Unhook> {
+internal fun hookCodeStyle(
+    classLoader: ClassLoader,
+    cache: HighlightCache,
+    taps: CodeBlockTaps?,
+    log: Logger,
+): List<XC_MethodHook.Unhook> {
     val codeStyle = classLoader.loadClass(CODE_STYLE)
     val node = classLoader.loadClass(CODE_BLOCK_NODE)
     val getLang = node.getMethod("getLang")
@@ -77,13 +84,25 @@ internal fun hookCodeStyle(classLoader: ClassLoader, cache: HighlightCache, log:
                 param.setObjectExtra(EXTRA_START, (param.args[0] as SpannableStringBuilder).length)
             },
             after = { param ->
-                val highlight = rendered.get() ?: return@hook
+                val highlight = rendered.get()
                 rendered.set(null)
-                if (fillPaint == null) return@hook
 
                 val builder = param.args[0] as SpannableStringBuilder
                 val start = param.getObjectExtra(EXTRA_START) as Int
-                builder.paintBlockBackground(start, fillPaint, highlight.bg)
+                if (highlight != null && fillPaint != null) builder.paintBlockBackground(start, fillPaint, highlight.bg)
+
+                // Tapping a hidden spoiler reveals it instead
+                val rc = param.args[2]
+                if (taps != null && taps.enabled && spoilerIsHidden.invoke(rc) != true) {
+                    val target = param.args[1]
+                    val span = taps.span(
+                        getLang.invoke(target) as String,
+                        getContent.invoke(target) as String,
+                        highlight,
+                        rc,
+                    )
+                    builder.span(span, start, builder.length)
+                }
             },
         ),
     )

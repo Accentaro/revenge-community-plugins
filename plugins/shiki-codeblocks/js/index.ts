@@ -4,7 +4,7 @@ import { getModules } from '@revenge-mod/modules/finders'
 import { withProps } from '@revenge-mod/modules/finders/filters'
 import { before } from '@revenge-mod/patcher'
 import { createHighlighter } from './highlighter'
-import { clearHighlights, putHighlights } from './native'
+import { clearHighlights, putHighlights, setOpenOnTap } from './native'
 import SettingsComponent from './settings'
 import { getThemes } from './themes'
 import type { DiscordModules } from '@revenge-mod/discord/types'
@@ -15,11 +15,14 @@ export interface Settings {
 	/** For Discord's dark, darker and midnight themes. */
 	dark: ThemeName
 	light: ThemeName
+	/** Whether tapping a code block opens it in a viewer, where its text can be selected. */
+	openOnTap: boolean
 }
 
 export const DefaultSettings: Settings = {
 	dark: 'github-dark-default',
 	light: 'github-light-default',
+	openOnTap: true,
 }
 
 /** Commands of Discord's native chat list. Rows are serialized to JSON after this. */
@@ -45,18 +48,30 @@ const MemoCapacity = 256
 export default plugin<{ jsonStorage: Settings }>({
 	jsonStorage: { load: true, default: DefaultSettings },
 	start({ cleanup, jsonStorage, plugin }) {
-		// Key to highlight (or null for languages that aren't shipped), least recently used first
-		const memo = new Map<string, Highlight | null>()
+		// Key to highlight, least recently used first
+		const memo = new Map<string, Highlight>()
 		const highlight = createHighlighter()
 		let reported = false
 
+		const settings = () =>
+			(jsonStorage.cache as Partial<Settings> | undefined) ?? DefaultSettings
+		const syncOpenOnTap = () =>
+			setOpenOnTap(settings().openOnTap ?? DefaultSettings.openOnTap)
+
 		clearHighlights()
+		syncOpenOnTap()
 		cleanup(clearHighlights)
 
-		// Rows already rendered keep their highlights, and Discord doesn't send them again for this
 		cleanup(
-			jsonStorage.subscribe((_, mode) => {
-				if (mode !== JsonStorageUpdateMode.Load) plugin.requireReload()
+			jsonStorage.subscribe((update, mode) => {
+				// Checked on every tap, so this applies right away
+				syncOpenOnTap()
+				// Rows already rendered keep their highlights, and Discord doesn't send them again for this
+				if (
+					mode !== JsonStorageUpdateMode.Load &&
+					('dark' in update || 'light' in update)
+				)
+					plugin.requireReload()
 			}),
 		)
 
@@ -64,9 +79,7 @@ export default plugin<{ jsonStorage: Settings }>({
 			const type =
 				(Stores.ThemeStore as ThemeStore).theme === 'light' ? 'light' : 'dark'
 			// Stored themes may be missing, or removed in a later version
-			const stored = (jsonStorage.cache as Partial<Settings> | undefined)?.[
-				type
-			]
+			const stored = settings()[type]
 			const theme =
 				stored && stored in getThemes() ? stored : DefaultSettings[type]
 
@@ -89,7 +102,7 @@ export default plugin<{ jsonStorage: Settings }>({
 
 				memo.set(key, result)
 				if (memo.size > MemoCapacity) memo.delete(memo.keys().next().value!)
-				if (result) blocks.push(result)
+				blocks.push(result)
 			}
 
 			if (blocks.length) putHighlights(blocks)
