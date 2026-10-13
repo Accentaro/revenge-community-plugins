@@ -39,19 +39,30 @@ export function createHighlighter() {
 			shiki.loadThemeSync(readAsset<ThemeRegistration>(`themes/${name}`))
 	}
 
-	/** Highlights a code block. Returns `null` for languages that aren't shipped. */
+	/**
+	 * Highlights a code block. Blocks in languages that aren't shipped, or too long to tokenize,
+	 * are plain but still in the theme's colors, to look like the rest.
+	 */
 	return function highlight(
 		lang: string,
 		content: string,
 		theme: ThemeName,
-	): Highlight | null {
-		if (content.length > MaxContentLength) return null
+	): Highlight {
+		loadTheme(theme)
 
 		const name = getIndex().languages[lang.trim().toLowerCase()]
-		if (!name) return null
+		if (!name || content.length > MaxContentLength) {
+			const { fg, bg } = shiki.getTheme(theme)
+			return {
+				lang: lang.trim(),
+				content,
+				fg: parseColor(fg) ?? White,
+				bg: parseColor(bg) ?? Black,
+				spans: [],
+			}
+		}
 
 		loadLanguage(name)
-		loadTheme(theme)
 
 		const result = shiki.codeToTokens(content, { lang: name, theme })
 		const fg = parseColor(result.fg) ?? White

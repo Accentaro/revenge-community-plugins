@@ -58,6 +58,8 @@ graph TD
   The viewer is a dialog with the same spans in a selectable `TextView`, in Discord's code font, scrolling horizontally.
   JS tells native whether it's enabled (`palmdevs.shiki.setOpenOnTap`), which is checked on every tap.
 
+Blocks in languages that aren't shipped, or over 20,000 characters, are left plain in the theme's colors, to match the rest.
+Anything unexpected falls back to Discord's own highlighting instead of breaking chat: cache misses and JS errors.
 
 ### Assets
 
