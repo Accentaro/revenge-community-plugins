@@ -54,7 +54,7 @@ graph TD
 - `CodeViewer.kt` makes code blocks tappable and shows the viewer.
   Message text uses Discord's own touch handling (`NestedScrollOnTouchTracker`), which only taps spans implementing `NestedClickableSpan`.
   That interface is in Discord's class loader, so the spans are `java.lang.reflect.Proxy`s of it, set over the block after `renderCodeBlock`.
-  They expand to line bounds so the whole block is tappable, and handle long presses (doing nothing) so Discord doesn't turn them into taps.
+  They expand to line bounds so the whole block is tappable, and hand long presses to the message row's own listener (`getNestedLongClickListener`), so they open the message actions like anywhere else in the message.
   The viewer is a dialog with the same spans in a selectable `TextView`, in Discord's code font, scrolling horizontally.
   JS tells native whether it's enabled (`palmdevs.shiki.setOpenOnTap`), which is checked on every tap.
 

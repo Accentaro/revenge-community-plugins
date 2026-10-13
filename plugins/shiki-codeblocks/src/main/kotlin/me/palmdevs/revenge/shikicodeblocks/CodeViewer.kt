@@ -13,6 +13,7 @@ import android.os.Build
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.FrameLayout
@@ -23,7 +24,8 @@ import android.widget.TextView
 import android.widget.Toast
 import java.lang.reflect.Proxy
 
-private const val NESTED_CLICKABLE_SPAN = "com.discord.react_gesture_handler.nested_touch.NestedClickableSpan"
+private const val NESTED_TOUCH = "com.discord.react_gesture_handler.nested_touch"
+private const val NESTED_CLICKABLE_SPAN = "$NESTED_TOUCH.NestedClickableSpan"
 private const val DISCORD_FONT = "com.discord.fonts.DiscordFont"
 private const val DISCORD_FONT_SPAN = "com.discord.chat.presentation.textutils.DiscordFontSpan"
 
@@ -39,6 +41,9 @@ internal class CodeBlockTaps(classLoader: ClassLoader, private val open: (CodeBl
     @Volatile var enabled = true
 
     private val type = classLoader.loadClass(NESTED_CLICKABLE_SPAN)
+    // The message row's long press (its actions) is registered on it with `setOnLongClickListenerNested`
+    private val getNestedLongClickListener = classLoader.loadClass("$NESTED_TOUCH.NestedScrollOnTouchUtilsKt")
+        .getMethod("getNestedLongClickListener", View::class.java)
     // The lowest priority, so anything else tappable in a block wins
     private val priority = classLoader.loadClass("$NESTED_CLICKABLE_SPAN\$TouchPriority").enumConstants!!.first()
 
@@ -62,8 +67,7 @@ internal class CodeBlockTaps(classLoader: ClassLoader, private val open: (CodeBl
         return Proxy.newProxyInstance(type.classLoader, arrayOf(type)) { proxy, method, args ->
             when (method.name) {
                 "onClick" -> if (enabled) open(block)
-                // Handled, so Discord doesn't turn it into a tap. Message actions stay on long press.
-                "onLongClick" -> true
+                "onLongClick" -> handOverLongPress(args!![0] as View)
                 "getTouchPriority" -> priority
                 // Taps past the end of a line count too, so the whole block can be tapped
                 "getExpandsTouchTargetToLineBounds" -> true
@@ -73,6 +77,23 @@ internal class CodeBlockTaps(classLoader: ClassLoader, private val open: (CodeBl
                 else -> null
             }
         }
+    }
+
+    /**
+     * Long presses go to the message row instead, as for the rest of the message.
+     * Always handled, so Discord doesn't turn it into a tap that opens the viewer.
+     */
+    private fun handOverLongPress(view: View): Boolean {
+        var parent = view.parent
+        while (parent is View) {
+            val listener = getNestedLongClickListener.invoke(null, parent) as View.OnLongClickListener?
+            if (listener != null) {
+                listener.onLongClick(parent)
+                break
+            }
+            parent = parent.parent
+        }
+        return true
     }
 }
 
