@@ -4,6 +4,7 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
 import android.text.style.StrikethroughSpan
 import android.text.style.StyleSpan
@@ -123,15 +124,23 @@ private inline fun Method.hook(
 })
 
 internal fun SpannableStringBuilder.appendHighlighted(content: String, highlight: Highlight) {
+    val text = highlight.text ?: content
     val start = length
-    append(content)
+    append(text)
     setSpan(ForegroundColorSpan(highlight.fg), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+
+    val backgrounds = highlight.backgrounds
+    for (i in 0 until backgrounds.size - 2 step 3) {
+        val from = backgrounds[i]
+        val to = backgrounds[i + 1]
+        if (from in 0..<to && to <= text.length) span(BackgroundColorSpan(backgrounds[i + 2]), start + from, start + to)
+    }
 
     val spans = highlight.spans
     for (i in 0 until spans.size - 3 step 4) {
         val from = spans[i]
         val to = spans[i + 1]
-        if (from < 0 || to > content.length || from >= to) continue
+        if (from < 0 || to > text.length || from >= to) continue
 
         val color = spans[i + 2]
         val style = spans[i + 3]

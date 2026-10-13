@@ -3,6 +3,7 @@ import { JsonStorageUpdateMode } from '@revenge-mod/json-storage'
 import { getModules } from '@revenge-mod/modules/finders'
 import { withProps } from '@revenge-mod/modules/finders/filters'
 import { before } from '@revenge-mod/patcher'
+import { getRawAnsiBlocks, isAnsi, stripAnsi } from './ansi'
 import { createHighlighter } from './highlighter'
 import { clearHighlights, putHighlights, setOpenOnTap } from './native'
 import SettingsComponent from './settings'
@@ -83,26 +84,38 @@ export default plugin<{ jsonStorage: Settings }>({
 			const theme =
 				stored && stored in getThemes() ? stored : DefaultSettings[type]
 
-			const nodes: CodeBlockNode[] = []
-			collectCodeBlocks(rows, nodes)
-
 			// Every block in the rows is sent, even if it was before. Native hands them to the nodes made from these rows,
 			// so it never has to remember a block for later, and can't disagree with JS on what it has.
 			const keys = new Set<string>()
 			const blocks: Highlight[] = []
-			for (const { lang, content } of nodes) {
-				// Switching between light and dark sends every row again, which then get the other theme
-				const key = `${theme}\0${lang.trim()}\0${content}`
-				if (keys.has(key)) continue
-				keys.add(key)
+			for (const row of rows) {
+				const nodes: CodeBlockNode[] = []
+				collectCodeBlocks(row, nodes)
+				if (!nodes.length) continue
 
-				let result = memo.get(key)
-				if (result === undefined) result = highlight(lang, content, theme)
-				else memo.delete(key)
+				const raw = nodes.some(node => isAnsi(node.lang))
+					? getRawAnsiBlocks(row)
+					: undefined
 
-				memo.set(key, result)
-				if (memo.size > MemoCapacity) memo.delete(memo.keys().next().value!)
-				blocks.push(result)
+				for (const { lang, content } of nodes) {
+					// ANSI blocks come without escape sequences, so they are highlighted from the stored message
+					const source =
+						(isAnsi(lang) && raw?.get(stripAnsi(content))) || content
+
+					// Switching between light and dark sends every row again, which then get the other theme
+					const key = `${theme}\0${lang.trim()}\0${source}`
+					if (keys.has(key)) continue
+					keys.add(key)
+
+					let result = memo.get(key)
+					if (result === undefined) result = highlight(lang, source, theme)
+					else memo.delete(key)
+
+					memo.set(key, result)
+					if (memo.size > MemoCapacity) memo.delete(memo.keys().next().value!)
+					// Native looks blocks up by the content it gets
+					blocks.push(source === content ? result : { ...result, content })
+				}
 			}
 
 			if (blocks.length) putHighlights(blocks)

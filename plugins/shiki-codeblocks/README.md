@@ -58,6 +58,7 @@ graph TD
   The viewer is a dialog with the same spans in a selectable `TextView`, in Discord's code font, scrolling horizontally.
   JS tells native whether it's enabled (`palmdevs.shiki.setOpenOnTap`), which is checked on every tap.
 
+`ansi` blocks are colored like on desktop, with the theme's terminal palette. Discord strips their escape sequences before rows reach native, so `ansi.ts` finds the raw block in the stored message (`MessageStore`, including forwards) by its stripped text, and highlights that. ANSI is built into Shiki, and its tokens leave out escape sequences, so JS sends the shown text (`text`) and background colors (`backgrounds`) along with the spans.
 Blocks in languages that aren't shipped, or over 20,000 characters, are left plain in the theme's colors, to match the rest.
 Anything unexpected falls back to Discord's own highlighting instead of breaking chat: cache misses and JS errors.
 

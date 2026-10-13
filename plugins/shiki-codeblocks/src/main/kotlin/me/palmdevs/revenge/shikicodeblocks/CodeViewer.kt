@@ -161,6 +161,7 @@ internal fun showCodeViewer(activity: Activity, block: CodeBlock, codeFont: ((Co
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(fg)
             setPadding(px(12), px(8), px(12), px(8))
+            // The raw content, so ANSI keeps its colors when sent again. Selecting copies what's shown.
             setOnClickListener { copy(activity, block.content) }
         })
     }
