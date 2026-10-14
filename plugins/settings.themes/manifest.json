@@ -9,7 +9,6 @@
 	],
 	"icon": "PaintPaletteIcon",
 	"version": "1.0.0",
-	"enabledByDefault": true,
 	"dependencies": {
 		"revenge.api": {
 			"version": ">=1 <2"
