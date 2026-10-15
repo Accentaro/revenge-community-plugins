@@ -39,7 +39,8 @@ export default plugin({
 					registerEmojiPack(id, groupId, packId, pack),
 			}
 
-			if (id === SettingsPluginId) plugin.api.themesInternal = { store }
+			if (id === SettingsPluginId)
+				plugin.api.themesInternal = { store, plugin: self }
 
 			return () => {
 				unregisterAll(id)
