@@ -3,8 +3,8 @@
 
 import { ToastActionCreators } from '@revenge-mod/discord/actions'
 import { Design } from '@revenge-mod/discord/design'
-import { RootNavigationRef } from '@revenge-mod/discord/modules/main_tabs_v2'
 import { onSettingsModulesLoaded } from '@revenge-mod/discord/modules/settings'
+import { ReactNavigationNative } from '@revenge-mod/externals/react-navigation'
 import { lookupGeneratedIconComponent } from '@revenge-mod/utils/discord'
 import { RouteNames, Setting } from './constants'
 import { isThemePlugin } from './utils/plugins'
@@ -24,7 +24,7 @@ export default plugin<{ jsonStorage: Settings }>({
 	preInit({ themesInternal: internal }) {
 		themesInternal = internal
 	},
-	start({ cleanup, pluginSettings: settings, jsonStorage, plugin }) {
+	start({ cleanup, pluginSettings: settings, plugin }) {
 		pluginSettings = settings
 		// Manage theme plugins under Themes instead of standard plugins settings
 		settings.claimPlugins(isThemePlugin)
@@ -37,34 +37,26 @@ export default plugin<{ jsonStorage: Settings }>({
 		)
 
 		if (plugin.startedLate) {
-			jsonStorage.get().then(settings => {
-				if (settings.guideShownAt == null) {
-					const navigation = RootNavigationRef.getRootNavigationRef()
-					navigation.navigate('settings', {
-						screen: RouteNames[Setting.RevengeThemes],
-					})
-
-					ToastActionCreators.open('REVENGE_THEMES_GUIDE', {
-						icon: lookupGeneratedIconComponent(
-							'CircleInformationIcon',
-							'CircleInformationIcon-primary',
-							'CircleInformationIcon-secondary',
-						),
-						text: (
-							<Design.Text variant="text-md/normal" color="text-strong">
-								You can access this page from{' '}
-								<Design.Text variant="text-md/bold">
-									Settings &gt; Themes
-								</Design.Text>{' '}
-								next time.
-							</Design.Text>
-						),
-						duration: 10000,
-					})
-
-					jsonStorage.set({ guideShownAt: Date.now() })
-				}
+			ToastActionCreators.open('REVENGE_THEMES_GUIDE', {
+				icon: lookupGeneratedIconComponent('LightbulbIcon'),
+				text: (
+					<Design.Text variant="text-md/normal" color="text-strong">
+						You can now access:{' \n'}
+						<Design.Text variant="text-md/bold">
+							Settings &gt; Revenge &gt; Themes
+						</Design.Text>
+					</Design.Text>
+				),
+				duration: 10000,
 			})
 		}
+	},
+	SettingsComponent: () => {
+		const navigation = ReactNavigationNative.useNavigation()
+		navigation.replace(RouteNames[Setting.RevengeThemes])
+
+		return (
+			<Design.Text>This page isn't supposed to exist. :clueless:</Design.Text>
+		)
 	},
 })
