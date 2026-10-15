@@ -7,4 +7,5 @@ const ThemesApiId = 'revenge.api.themes'
  * Claimed while this plugin runs to manage and browse them under Themes.
  */
 export const isThemePlugin: PluginMatch = plugin =>
-	plugin.dependencies[ThemesApiId]?.optional === false
+	plugin.dependencies[ThemesApiId]?.optional === false ||
+	plugin.id === ThemesApiId
