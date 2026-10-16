@@ -2,7 +2,7 @@ import { getModules } from '@revenge-mod/modules/finders'
 import { withProps } from '@revenge-mod/modules/finders/filters'
 import { instead } from '@revenge-mod/patcher'
 import type { PreInitPluginApi } from '@revenge-mod/plugins/types'
-import type { ThemeBase, ThemeColors } from './types'
+import type { DiscordColors, ThemeBase, ThemeColors } from './types'
 
 type PluginCleanupApi = PreInitPluginApi['cleanup']
 
@@ -108,7 +108,10 @@ export function resolvePreviewColors(
 	}
 }
 
-/** Updates active colors for future resolutions. Rendered components keep existing colors until re-render. */
+/** Discord's colors without overrides, or `undefined` if Discord's module hasn't initialized. */
+export function discordColors(): DiscordColors | undefined {
+	if (rawColors) return { raw: { ...rawColors, ...rawOriginals } }
+}
 export function setThemeColors(next: ThemeColors | undefined) {
 	restoreRawColors()
 	colors = next
