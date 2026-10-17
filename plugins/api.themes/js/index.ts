@@ -28,7 +28,7 @@ export default plugin({
 
 		patchColorTokens(cleanup)
 		patchThemeContext(cleanup)
-		patchBackgrounds(cleanup)
+		patchBackgrounds(cleanup, self.startedLate)
 		loadSelections()
 
 		decorate(plugin => {

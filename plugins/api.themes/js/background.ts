@@ -1,6 +1,7 @@
 import { Stores } from '@revenge-mod/discord/flux'
 import { getModules } from '@revenge-mod/modules/finders'
 import { withProps } from '@revenge-mod/modules/finders/filters'
+import { noop } from '@revenge-mod/utils/callback'
 import { createElement, useSyncExternalStore } from 'react'
 import { Image, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { ownGradientSettings, resolveSemanticColor } from './colors'
@@ -94,8 +95,16 @@ let displaySettings:
  * surfaces turn translucent as with a gradient theme, and gradient layers draw the image.
  * Discord's own custom theme, preview, or server theme still takes precedence.
  */
-export function patchBackgrounds(cleanup: PluginCleanupApi) {
+export function patchBackgrounds(
+	cleanup: PluginCleanupApi,
+	startedLate: boolean,
+) {
 	let stopped = false
+
+	const useBackgroundUpdates = startedLate
+		? // We don't want to patch after rendered because it changes the hook count and order
+			noop
+		: () => useSyncExternalStore(themesStore.subscribe, activeBackground)
 
 	cleanup(
 		() => {
@@ -109,19 +118,13 @@ export function patchBackgrounds(cleanup: PluginCleanupApi) {
 				const original = module.useCustomThemeDisplaySettings
 				if (stopped) return
 
-				// A hook, but adds no hooks of its own, so restoring it mid-render is safe
 				function useCustomThemeDisplaySettings(...args: unknown[]) {
-					return original(...args) ?? backgroundDisplaySettings()
+					useBackgroundUpdates()
+					const value = original(...args)
+					return stopped ? value : (value ?? backgroundDisplaySettings())
 				}
 
 				module.useCustomThemeDisplaySettings = useCustomThemeDisplaySettings
-				cleanup(() => {
-					if (
-						module.useCustomThemeDisplaySettings ===
-						useCustomThemeDisplaySettings
-					)
-						module.useCustomThemeDisplaySettings = original
-				})
 			},
 			{ cached: true },
 		),
@@ -197,20 +200,15 @@ export function patchBackgrounds(cleanup: PluginCleanupApi) {
 				const original = module.useIsClientThemeOrCustomThemeActive
 				if (stopped) return
 
-				// Discord only counts saved custom themes, not previews like ours. Adds no hooks, like above.
+				// Discord only counts saved custom themes, not previews like ours
 				function useIsClientThemeOrCustomThemeActive() {
-					return original() || activeBackground() !== undefined
+					useBackgroundUpdates()
+					const active = original()
+					return stopped ? active : active || activeBackground() !== undefined
 				}
 
 				module.useIsClientThemeOrCustomThemeActive =
 					useIsClientThemeOrCustomThemeActive
-				cleanup(() => {
-					if (
-						module.useIsClientThemeOrCustomThemeActive ===
-						useIsClientThemeOrCustomThemeActive
-					)
-						module.useIsClientThemeOrCustomThemeActive = original
-				})
 			},
 			{ cached: true },
 		),
