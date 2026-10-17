@@ -38,9 +38,7 @@ export default plugin({
 											inputs.getBestActiveInputForChannelId(channelId)
 										if (!input) {
 											plugin.reportError(
-												new Error(
-													'Could not find the chatbox. GIF was not sent.',
-												),
+												'Could not find the chatbox. GIF was not sent.',
 											)
 											return
 										}
