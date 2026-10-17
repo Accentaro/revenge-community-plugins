@@ -24,7 +24,7 @@ export interface ThemeBackground {
 	/** Image path, relative to the plugin directory or absolute, or an `http(s)` URL. */
 	path: string
 	/**
-	 * Image strength from 0 to 1, on top of the dimming Discord applies to gradient themes.
+	 * Image opacity from 0 to 1, on top of Discord's gradient theme dimming.
 	 * @default 1
 	 */
 	opacity?: number
@@ -35,9 +35,9 @@ export interface ThemeBackground {
 export interface ThemeDefinition {
 	name: string
 	description?: string
-	/** Evaluates colors when picked and to render previews in the picker. */
+	/** Evaluates colors when picked and renders picker previews. */
 	getColors(discord: DiscordColors): ThemeColors
-	/** Image behind the main screens and chat, which turn translucent like Discord's gradient themes. */
+	/** Image behind main screens and chat, which turn translucent like Discord gradient themes. */
 	background?: ThemeBackground
 }
 
@@ -153,7 +153,7 @@ export interface EmojiSelection {
 }
 
 export interface BackgroundSettings {
-	/** Whose image to show: the color theme's, {@link path}, or none. */
+	/** Image source: active color theme's, custom {@link path}, or none (`'none'`). */
 	source: 'theme' | 'custom' | 'none'
 	/** Absolute image path or `http(s)` URL, for `custom`. */
 	path?: string
@@ -167,6 +167,6 @@ export interface ThemesState {
 	fonts?: FontsSelection
 	icons?: IconsSelection
 	emoji?: EmojiSelection
-	/** User's background settings. Unset means use the color theme's background. */
+	/** User background settings. Defaults to color theme's background when unset. */
 	background?: BackgroundSettings
 }

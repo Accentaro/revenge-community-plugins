@@ -1,13 +1,14 @@
 import { Stores } from '@revenge-mod/discord/flux'
 import { getModules } from '@revenge-mod/modules/finders'
 import { withProps } from '@revenge-mod/modules/finders/filters'
+import { instead } from '@revenge-mod/patcher'
 import { noop } from '@revenge-mod/utils/callback'
-import { createElement, useSyncExternalStore } from 'react'
+import { useSyncExternalStore } from 'react'
 import { Image, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { ownGradientSettings, resolveSemanticColor } from './colors'
 import { activeBackgroundOf, themesStore } from './store'
 import type { PreInitPluginApi } from '@revenge-mod/plugins/types'
-import type { ComponentType } from 'react'
+import type { FunctionComponent } from 'react'
 import type { StyleProp, ViewStyle } from 'react-native'
 import type { ActiveBackground } from './store'
 import type { ThemeBase } from './types'
@@ -60,7 +61,7 @@ interface ThemeStore {
 
 // ../discord_app/modules/client_themes/native/ThemedGradient.tsx
 interface ThemedGradientModule {
-	default: ComponentType<ThemedGradientProps>
+	default: FunctionComponent<ThemedGradientProps>
 	CustomThemedGradient: unknown
 	validateColors: unknown
 }
@@ -72,7 +73,7 @@ const BaseMix = 100
 const SurfaceColor = 'BACKGROUND_BASE_LOWER'
 
 // ../discord_app/modules/client_themes/native/ClientThemesUtils.tsx: surfaces mix the gradient at
-// 0.12 + 0.2 * baseMix (0.3 + ... in light) over black (white in light)
+// 0.12 + 0.2 * baseMix (0.3 in light) over black (white in light)
 const GradientWeight = {
 	dark: 0.12 + 0.2 * (BaseMix / 100),
 	light: 0.3 + 0.2 * (BaseMix / 100),
@@ -91,103 +92,94 @@ let displaySettings:
 	| undefined
 
 /**
- * Shows the active theme's background through Discord's custom theme gradient path:
- * surfaces turn translucent as with a gradient theme, and gradient layers draw the image.
- * Discord's own custom theme, preview, or server theme still takes precedence.
+ * Renders active theme background through Discord's custom gradient theme pipeline.
+ * Surfaces turn translucent and gradient layers draw the image.
+ * Discord custom themes, previews, and server themes take precedence.
  */
 export function patchBackgrounds(
 	cleanup: PluginCleanupApi,
 	startedLate: boolean,
 ) {
-	let stopped = false
-
 	const useBackgroundUpdates = startedLate
-		? // We don't want to patch after rendered because it changes the hook count and order
+		? // Avoids late patching that alters hook count or call order after initial render
 			noop
 		: () => useSyncExternalStore(themesStore.subscribe, activeBackground)
 
 	cleanup(
-		() => {
-			stopped = true
-		},
 		getModules(
 			withProps<CustomThemeDisplaySettingsModule>(
 				'useCustomThemeDisplaySettings',
 			),
 			module => {
-				const original = module.useCustomThemeDisplaySettings
-				if (stopped) return
-
-				function useCustomThemeDisplaySettings(...args: unknown[]) {
-					useBackgroundUpdates()
-					const value = original(...args)
-					return stopped ? value : (value ?? backgroundDisplaySettings())
-				}
-
-				module.useCustomThemeDisplaySettings = useCustomThemeDisplaySettings
+				cleanup(
+					instead(module, 'useCustomThemeDisplaySettings', (args, orig) => {
+						useBackgroundUpdates()
+						const value = orig(...args)
+						return value ?? backgroundDisplaySettings()
+					}),
+				)
 			},
 			{ cached: true },
 		),
 		getModules(
 			withProps<ThemedGradientModule>('CustomThemedGradient', 'validateColors'),
 			module => {
-				const Original = module.default
-				if (stopped) return
+				cleanup(
+					instead(module, 'default', (args, Original) => {
+						const [props] = args
 
-				function ThemedGradient(props: ThemedGradientProps) {
-					const background = useSyncExternalStore(
-						themesStore.subscribe,
-						activeBackground,
-					)
-					const theme = useSyncExternalStore(subscribeThemeStore, currentTheme)
-					const { width, height } = useWindowDimensions()
+						const background = useSyncExternalStore(
+							themesStore.subscribe,
+							activeBackground,
+						)
+						const theme = useSyncExternalStore(
+							subscribeThemeStore,
+							currentTheme,
+						)
+						const { width, height } = useWindowDimensions()
 
-					if (!background || props.gradientOverride != null)
-						return createElement(Original, props)
+						if (!background || props.gradientOverride != null)
+							return <Original {...props} />
 
-					// Drawn like Discord draws the gradient. Surfaces above add their own dimming overlays.
-					const light = theme === 'light'
-					const weight = props.mix
-						? light
-							? MixWeight.light
-							: MixWeight.dark
-						: 1
+						// Mirrors Discord gradient rendering while overlays handle dimming
+						const light = theme === 'light'
+						const weight = props.mix
+							? light
+								? MixWeight.light
+								: MixWeight.dark
+							: 1
 
-					return createElement(
-						View,
-						{
-							pointerEvents: 'none',
-							style: [
-								props.absolute ? StyleSheet.absoluteFill : props.style,
-								props.wide && { width },
-								props.tall && { height },
-								{
-									backgroundColor: light ? '#ffffff' : '#000000',
-									overflow: 'hidden',
-								},
-							],
-						},
-						// Window-sized in every layer, so layers crop the image alike
-						createElement(Image, {
-							source: { uri: background.uri },
-							blurRadius: background.blur,
-							resizeMode: 'cover',
-							style: {
-								position: 'absolute',
-								top: 0,
-								left: 0,
-								width,
-								height,
-								opacity: weight * (background.opacity ?? 1),
-							},
-						}),
-					)
-				}
-
-				module.default = ThemedGradient
-				cleanup(() => {
-					if (module.default === ThemedGradient) module.default = Original
-				})
+						return (
+							<View
+								pointerEvents="none"
+								style={[
+									props.absolute ? StyleSheet.absoluteFill : props.style,
+									props.wide && { width },
+									props.tall && { height },
+									{
+										backgroundColor: light ? '#ffffff' : '#000000',
+										overflow: 'hidden',
+									},
+								]}
+							>
+								{/* Matches window dimensions so multi-layer crops align */}
+								<Image
+									source={{ uri: background.uri }}
+									blurRadius={background.blur}
+									resizeMode="cover"
+									style={{
+										position: 'absolute',
+										top: 0,
+										left: 0,
+										width,
+										height,
+										opacity: weight * (background.opacity ?? 1),
+									}}
+								/>
+							</View>
+						)
+					}),
+				)
 			},
 			{ cached: true },
 		),
@@ -197,18 +189,18 @@ export function patchBackgrounds(
 				'useActiveThemeType',
 			),
 			module => {
-				const original = module.useIsClientThemeOrCustomThemeActive
-				if (stopped) return
-
-				// Discord only counts saved custom themes, not previews like ours
-				function useIsClientThemeOrCustomThemeActive() {
-					useBackgroundUpdates()
-					const active = original()
-					return stopped ? active : active || activeBackground() !== undefined
-				}
-
-				module.useIsClientThemeOrCustomThemeActive =
-					useIsClientThemeOrCustomThemeActive
+				// Discord only checks saved custom themes, excluding active previews
+				cleanup(
+					instead(
+						module,
+						'useIsClientThemeOrCustomThemeActive',
+						(args, orig) => {
+							useBackgroundUpdates()
+							const active = orig(...args)
+							return active || activeBackground() !== undefined
+						},
+					),
+				)
 			},
 			{ cached: true },
 		),
@@ -232,7 +224,7 @@ function currentTheme() {
 	return themeStore().theme
 }
 
-/** Custom theme Discord renders while a background is active. The same object until something it uses changes. */
+/** Custom theme settings applied while background is active. Caches result until inputs change. */
 function backgroundDisplaySettings() {
 	const state = themesStore.getState()
 	const background = activeBackgroundOf(state)
@@ -266,7 +258,7 @@ function backgroundDisplaySettings() {
 	return displaySettings.value
 }
 
-/** Gradient color whose mix Discord renders as the theme's own surface color. */
+/** Calculates gradient color whose mix renders as theme surface color. */
 function gradientColorFor(surface: string, light: boolean) {
 	const weight = light ? GradientWeight.light : GradientWeight.dark
 	const overlay = light ? 255 : 0

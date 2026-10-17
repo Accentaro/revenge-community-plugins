@@ -654,7 +654,7 @@ let lastActiveBackground:
 	  }
 	| undefined
 
-/** Background the active color theme provides, if any. */
+/** Background configuration provided by the active color theme, if defined. */
 export function themeBackgroundOf({ groups, selected }: ThemesStoreState) {
 	const colors = selected.colors
 	if (colors)
@@ -673,7 +673,7 @@ export function activeBackgroundOf(state: ThemesStoreState) {
 		return lastActiveBackground.value
 
 	const source = settings?.source ?? 'theme'
-	// The theme's opacity and blur suit its own image only
+	// Theme opacity and blur defaults apply exclusively to theme backgrounds.
 	const base = source === 'theme' ? theme : undefined
 	const path = source === 'custom' ? settings?.path : base?.path
 

@@ -1,9 +1,9 @@
 import { getModules } from '@revenge-mod/modules/finders'
 import { withProps } from '@revenge-mod/modules/finders/filters'
-import { instead } from '@revenge-mod/patcher'
-import { createElement, useSyncExternalStore } from 'react'
+import { before, instead } from '@revenge-mod/patcher'
+import { useSyncExternalStore } from 'react'
 import type { PreInitPluginApi } from '@revenge-mod/plugins/types'
-import type { ComponentType } from 'react'
+import type { FC } from 'react'
 import type { DiscordColors, ThemeBase, ThemeColors } from './types'
 
 type PluginCleanupApi = PreInitPluginApi['cleanup']
@@ -13,7 +13,7 @@ interface SemanticColorContext {
 	gradient?: { customThemeSettings?: object } | null
 }
 
-/** Custom theme settings of our backgrounds, whose gradient keeps theme colors. */
+/** Custom theme settings for backgrounds where gradients keep theme colors. */
 export const ownGradientSettings = new WeakSet<object>()
 
 // ../discord_common/js/packages/tokens/native.tsx
@@ -41,22 +41,14 @@ let tokensModule: TokensModule | undefined
 const rawOriginals: Record<string, string> = {}
 
 /**
- * Patches Discord's color tokens, now or once the module initializes. Clean up with {@link cleanup}.
+ * Patches Discord color tokens, immediately or once module initializes. Clean up with {@link cleanup}.
  * Raw colors restore with other selections in `unloadSelections`.
  */
 export function patchColorTokens(cleanup: PluginCleanupApi) {
-	// Already-initialized modules resolve a tick later, which unsubscribing cannot cancel
-	let stopped = false
-
 	cleanup(
-		() => {
-			stopped = true
-		},
 		getModules(
 			withProps<TokensModule>('RawColor', 'SemanticColor'),
 			tokens => {
-				if (stopped) return
-
 				tokensModule = tokens
 				// Shared object resolveSemanticColor reads raw colors from
 				rawColors = tokens.RawColor
@@ -135,11 +127,11 @@ interface RootThemeContextProviderProps {
 }
 
 interface RootThemeContextModule {
-	RootThemeContextProvider: ComponentType<RootThemeContextProviderProps>
+	RootThemeContextProvider: FC<RootThemeContextProviderProps>
 	DisableCustomTheme: unknown
 }
 
-/** Bumped when colors or icons change at runtime. Never reused, since Discord caches resolved colors per theme context key. */
+/** Increments when colors or icons change at runtime. Invalidates theme context cache. */
 let colorsVersion = 0
 const versionListeners = new Set<() => void>()
 const noExperiments: string[] = []
@@ -149,61 +141,41 @@ const versionedExperiments = new WeakMap<
 >()
 
 /**
- * Wraps Discord's root theme context provider so {@link refreshThemedComponents} can give the theme context a new key.
- * The key goes into `enabledExperiments`, which nested theme providers copy from the root.
+ * Wraps Discord root theme context provider so {@link refreshThemedComponents} supplies a new key.
+ * Injects key into `enabledExperiments`, which nested theme providers inherit from root.
  */
 export function patchThemeContext(cleanup: PluginCleanupApi) {
-	let stopped = false
-	const wrappers = new WeakSet<object>()
-
 	cleanup(
-		() => {
-			stopped = true
-		},
 		getModules(
 			withProps<RootThemeContextModule>(
 				'RootThemeContextProvider',
 				'DisableCustomTheme',
 			),
 			module => {
-				const Original = module.RootThemeContextProvider
-				if (stopped || wrappers.has(Original)) return
+				cleanup(
+					before(module, 'RootThemeContextProvider', args => {
+						const version = useSyncExternalStore(
+							subscribeColorsVersion,
+							getColorsVersion,
+						)
 
-				function RootThemeContextProvider(
-					props: RootThemeContextProviderProps,
-				) {
-					const version = useSyncExternalStore(
-						subscribeColorsVersion,
-						getColorsVersion,
-					)
+						const [props] = args
 
-					return createElement(
-						Original,
-						version
-							? {
-									...props,
-									enabledExperiments: experimentsWithVersion(
-										props.enabledExperiments ?? noExperiments,
-										version,
-									),
-								}
-							: props,
-					)
-				}
+						props.enabledExperiments = experimentsWithVersion(
+							props.enabledExperiments ?? noExperiments,
+							version,
+						)
 
-				wrappers.add(RootThemeContextProvider)
-				module.RootThemeContextProvider = RootThemeContextProvider
-				cleanup(() => {
-					if (module.RootThemeContextProvider === RootThemeContextProvider)
-						module.RootThemeContextProvider = Original
-				})
+						return args
+					}),
+				)
 			},
 			{ cached: true },
 		),
 	)
 }
 
-/** Re-renders themed components with the active colors and icons. */
+/** Re-renders themed components with active colors and icons. */
 export function refreshThemedComponents() {
 	colorsVersion++
 	for (const listener of versionListeners) listener()
@@ -220,7 +192,7 @@ function getColorsVersion() {
 	return colorsVersion
 }
 
-// Same array for the same input, so the context only changes when the version does
+// Same array for same input, so context only changes when version increments.
 function experimentsWithVersion(experiments: string[], version: number) {
 	const cached = versionedExperiments.get(experiments)
 	if (cached?.version === version) return cached.value
