@@ -1,12 +1,11 @@
-/** @jsxImportSource . */
 import { Design } from '@revenge-mod/discord/design'
 import { RootNavigationRef } from '@revenge-mod/discord/modules/main_tabs_v2'
 import { getModuleWithImportedPath } from '@revenge-mod/discord/utils/modules/finders'
 import { lookupModule } from '@revenge-mod/modules/finders'
 import { withProps } from '@revenge-mod/modules/finders/filters'
 import { instead } from '@revenge-mod/patcher'
-import { React } from '@revenge-mod/react'
 import { lookupGeneratedIconComponent } from '@revenge-mod/utils/discord'
+import type * as React from 'react'
 
 type Notifications = {
 	type(props: { hasNameplate?: boolean }): React.ReactNode
@@ -18,20 +17,10 @@ export default plugin({
 			plugin.requireReload()
 			return
 		}
-		// Recheck after the native enable callback publishes its late-start state.
-		const reloadCheck = setTimeout(() => {
-			if (plugin.startedLate) plugin.requireReload()
-		}, 0)
-		cleanup(() => clearTimeout(reloadCheck))
-		let stopped = false
-		cleanup(() => {
-			stopped = true
-		})
 		cleanup(
 			getModuleWithImportedPath<{ default: Notifications }>(
 				'modules/main_tabs_v2/native/you_bar/YouBarNotificationsButton.tsx',
 				module => {
-					if (stopped) return
 					const [guilds] = lookupModule(
 						withProps<{ transitionToGuild(id: string): void }>(
 							'transitionToGuild',
@@ -51,9 +40,7 @@ export default plugin({
 						!StarIcon ||
 						!SettingsIcon
 					) {
-						plugin.reportError(
-							new Error('BetterYouBar: native shortcuts are unavailable.'),
-						)
+						plugin.reportError('Native shortcuts are unavailable.')
 						return
 					}
 					cleanup(
@@ -64,7 +51,7 @@ export default plugin({
 								? 'secondary-overlay'
 								: 'tertiary'
 							return (
-								<React.Fragment>
+								<>
 									<IconButton
 										size="sm"
 										variant={variant}
@@ -91,7 +78,7 @@ export default plugin({
 											)
 										}
 									/>
-								</React.Fragment>
+								</>
 							)
 						}),
 					)
