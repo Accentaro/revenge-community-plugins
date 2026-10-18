@@ -17,6 +17,11 @@ export interface RoleIconUtils {
 	}): { source?: string; unicodeEmoji?: string } | undefined
 }
 
+export interface EmojiUtils {
+	getURL(surrogate: string): string | undefined
+	applyPlatformToThemedEmojiColorPalette: unknown
+}
+
 export interface ChannelIconUtils {
 	getChannelIconURL(channel: Channel, size?: number): ImageSource
 	getChannelIconSource(channel: Channel): unknown

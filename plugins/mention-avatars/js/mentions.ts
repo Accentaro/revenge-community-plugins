@@ -11,6 +11,7 @@ import type { DiscordModules } from '@revenge-mod/discord/types'
 import type {
 	Channel,
 	ChannelIconUtils,
+	EmojiUtils,
 	ImageSource,
 	RoleIconUtils,
 	User,
@@ -26,7 +27,6 @@ export interface ContentNode {
 	channelId?: string
 	channelType?: number
 	icon?: string
-	surrogate?: string
 }
 
 // Glyphs are tinted with the text's color
@@ -131,15 +131,16 @@ function roleIcon(guildId: string, roleId: string): ContentNode[] | undefined {
 	const icon = RoleIconUtils?.getRoleIcon({ guildId, roleId, size: IconSize })
 
 	if (icon?.source) return [iconNode(icon.source, 'square')]
-	if (icon?.unicodeEmoji)
-		return [
-			{
-				type: 'emoji',
-				content: icon.unicodeEmoji,
-				surrogate: icon.unicodeEmoji,
-			},
-			{ type: 'text', content: '\u200a' },
-		]
+
+	// Emoji nodes can wrap away from the name, so draw it as an icon
+	if (icon?.unicodeEmoji) {
+		const [EmojiUtils] = lookupModule(
+			withProps<EmojiUtils>('getURL', 'applyPlatformToThemedEmojiColorPalette'),
+		)
+
+		const uri = EmojiUtils?.getURL(icon.unicodeEmoji)
+		if (uri) return [iconNode(uri, 'square')]
+	}
 
 	const uri = imageUri(getAssetIdByName('ShieldUserIcon'))
 	if (uri) return [iconNode(uri, 'glyph')]

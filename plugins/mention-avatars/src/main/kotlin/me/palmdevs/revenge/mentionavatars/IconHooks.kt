@@ -28,7 +28,8 @@ private const val DRAWEE_HOLDER = "com.facebook.drawee.view.DraweeHolder"
 private const val SHAPE_MARKER = "#palmdevs.mention-avatars:"
 private const val ICON_EXTRA = "palmdevs.mention-avatars.icon"
 
-private const val ICON_GAP = 8
+// Relative to the icon size
+private const val ICON_GAP = 0.1f
 
 private class GapSpan(private val width: Int) : ReplacementSpan() {
     override fun getSize(paint: Paint, text: CharSequence?, start: Int, end: Int, fm: Paint.FontMetricsInt?) = width
@@ -101,8 +102,10 @@ internal class IconHooks(classLoader: ClassLoader) {
                     }
 
                     // Padding insets the image instead of adding space, so we add a [GapSpan] instead
-                    builder.append('​')
-                    builder.setSpan(GapSpan(ICON_GAP), end, end + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    // Android allows line breaks around replacement spans, word joiners keep the icon with the name
+                    builder.append("⁠⁠⁠")
+                    val gap = GapSpan(((param.args[4] as Int) * ICON_GAP).roundToInt())
+                    builder.setSpan(gap, end + 1, end + 2, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
             }),
             XposedBridge.hookMethod(method("setDraweeSpanStringBuilder"), object : XC_MethodHook() {
