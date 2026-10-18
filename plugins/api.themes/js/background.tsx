@@ -144,9 +144,9 @@ export function patchBackgrounds(
 						// Mirrors Discord gradient rendering while overlays handle dimming
 						const light = theme === 'light'
 						const weight = props.mix
-							? light
-								? MixWeight.light
-								: MixWeight.dark
+							? 1 -
+								(1 - (light ? MixWeight.light : MixWeight.dark)) *
+									background.dimming
 							: 1
 
 						return (

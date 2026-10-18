@@ -644,6 +644,7 @@ export interface ActiveBackground {
 	uri: string
 	opacity?: number
 	blur: number
+	dimming: number
 }
 
 let lastActiveBackground:
@@ -673,7 +674,7 @@ export function activeBackgroundOf(state: ThemesStoreState) {
 		return lastActiveBackground.value
 
 	const source = settings?.source ?? 'theme'
-	// Theme opacity and blur defaults apply exclusively to theme backgrounds.
+	// Theme opacity, blur and dimming defaults apply exclusively to theme backgrounds.
 	const base = source === 'theme' ? theme : undefined
 	const path = source === 'custom' ? settings?.path : base?.path
 
@@ -682,6 +683,7 @@ export function activeBackgroundOf(state: ThemesStoreState) {
 				uri: imageUriOf(path, state.selected.colors?.plugin),
 				opacity: settings?.opacity ?? base?.opacity,
 				blur: settings?.blur ?? base?.blur ?? 0,
+				dimming: settings?.dimming ?? base?.dimming ?? 1,
 			}
 		: undefined
 
