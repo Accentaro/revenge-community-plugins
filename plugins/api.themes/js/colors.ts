@@ -192,12 +192,18 @@ function getColorsVersion() {
 	return colorsVersion
 }
 
+const KeyPrefix = 'revenge-themes-colors:'
+
 // Same array for same input, so context only changes when version increments.
 function experimentsWithVersion(experiments: string[], version: number) {
 	const cached = versionedExperiments.get(experiments)
 	if (cached?.version === version) return cached.value
 
-	const value = [...experiments, `revenge-themes-colors-${version}`]
+	const value = [
+		...experiments.filter(name => !name.startsWith(KeyPrefix)),
+		`${KeyPrefix}${version}`,
+	]
+
 	versionedExperiments.set(experiments, { version, value })
 	return value
 }
