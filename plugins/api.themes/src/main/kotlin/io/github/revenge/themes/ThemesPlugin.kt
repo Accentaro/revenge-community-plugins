@@ -2,6 +2,8 @@
 
 package io.github.revenge.themes
 
+import android.app.AndroidAppHelper
+import android.net.Uri
 import de.robv.android.xposed.XC_MethodHook
 import io.github.revenge.bridge.asDelegate
 import io.github.revenge.plugins.PluginScope
@@ -89,7 +91,38 @@ val themesPlugin = plugin {
             null
         }
 
-        // Registers { name, variants } as a font family JS can render with. Hooks fonts now if no pack did at boot.
+        registerNativeMethod("revenge.themes.setBackground") { args ->
+            select(args, ::backgroundSettingsOf) { s, v -> s.copy(background = v) }
+            null
+        }
+
+        // Copies picked image (file:// or content://) into storage. Returns its absolute path.
+        registerNativeAsyncMethod("revenge.themes.importBackground") { args ->
+            check(running) { "${manifest.id} is not running" }
+            val uri by args.asDelegate().string()
+            val source = Uri.parse(uri)
+            val dir = File(storageDir, BACKGROUNDS_DIR).apply { mkdirs() }
+
+            val extension = source.lastPathSegment?.substringAfterLast('.', "")
+                ?.takeIf { it.length in 1..5 && it.all(Char::isLetterOrDigit) }
+            val file = File(dir, "${System.currentTimeMillis()}${extension?.let { ".$it" }.orEmpty()}")
+
+            val input = if (source.scheme == "content") {
+                checkNotNull(AndroidAppHelper.currentApplication()) { "No application context" }
+                    .contentResolver.openInputStream(source)
+            } else {
+                File(checkNotNull(source.path) { "Not a file: $uri" }).inputStream()
+            }
+            checkNotNull(input) { "Cannot read $uri" }.use { from -> file.outputStream().use { from.copyTo(it) } }
+
+            // Earlier imports are unused unless still selected
+            val selected = store.state.background?.path
+            dir.listFiles()?.forEach { if (it != file && it.absolutePath != selected) it.delete() }
+
+            file.absolutePath
+        }
+
+        // Registers { name, variants } as font family JS can render with. Hooks ReactFontManager on demand.
         registerNativeMethod("revenge.themes.previewFont") { args ->
             check(running) { "${manifest.id} is not running" }
             val json by args.asDelegate().string()
@@ -99,7 +132,7 @@ val themesPlugin = plugin {
 
             val variants = request.getJSONArray("variants")
             fontPreviews[name] = (0 until variants.length()).map { fontVariantOf(variants.getJSONObject(it)) }
-            // A new instance drops typefaces cached for an older registration of a name
+            // New instance drops typefaces cached for an older registration of a name
             previewFonts.set(FontOverrides(fontPreviews.toMap(), log))
 
             synchronized(fontPreviews) {
@@ -108,8 +141,8 @@ val themesPlugin = plugin {
             null
         }
 
-        // Takes { pack: { images?, font? } | null, codepoints: [] }, returns a path (or null) per codepoints.
-        // Emoji the pack lacks, or all with a null pack, are Discord's .
+        // Takes { pack: { images?, font? } | null, codepoints: [] }, returns path (or null) per codepoints.
+        // Falls back to Discord defaults when omitted from pack or when pack is null.
         registerNativeAsyncMethod("revenge.themes.previewEmoji") { args ->
             check(running) { "${manifest.id} is not running" }
             val json by args.asDelegate().string()
@@ -147,6 +180,7 @@ val themesPlugin = plugin {
     }
 }
 
+private const val BACKGROUNDS_DIR = "backgrounds"
 private const val EMOJI_CACHE_DIR = "emoji-cache"
 private const val EMOJI_PREVIEW_DIR = "emoji-preview"
 
