@@ -35,3 +35,9 @@ This repository contains plugins for Revenge, maintained by the Revenge communit
 Revenge is a client modification for Discord mobile, allowing you to customize your Discord experience with plugins that can extend Discord's functionality, customize its appearance, and enable experimental features.
 
 This repository comes **pre-installed with Revenge**. If you want to use these plugins now, you can install them from **Settings** > **Revenge** > **Plugins** > **[+]**
+
+## 🔌 Plugins
+
+<!-- PLUGINS_TABLE_BEGIN -->
+
+<!-- PLUGINS_TABLE_END -->
