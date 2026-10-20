@@ -1,4 +1,3 @@
-/** @jsxImportSource . */
 import Page from '@revenge-mod/components/Page'
 import { Design } from '@revenge-mod/discord/design'
 import { ProviderSelect } from './picker'
@@ -39,7 +38,9 @@ export default function SettingsComponent({
 
 	return (
 		<Page>
-			<ProviderSelect />
+			<Design.TableRowGroup>
+				<ProviderSelect />
+			</Design.TableRowGroup>
 			<TableRadioGroup
 				title="GIF Quality"
 				value={gridQuality ?? defaults.gridQuality}

@@ -1,4 +1,3 @@
-/** @jsxImportSource . */
 import { getAssetIdByName as findAssetId } from '@revenge-mod/assets'
 import { ActionSheetActionCreators } from '@revenge-mod/discord/actions'
 import { Design } from '@revenge-mod/discord/design'

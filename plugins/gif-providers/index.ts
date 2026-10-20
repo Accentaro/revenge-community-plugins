@@ -1,6 +1,6 @@
 import { ToastActionCreators } from '@revenge-mod/discord/actions'
-import { onFluxEventDispatched, Stores } from '@revenge-mod/discord/flux'
-import { getModules, lookupModule } from '@revenge-mod/modules/finders'
+import { getStore, onFluxEventDispatched } from '@revenge-mod/discord/flux'
+import { getModules } from '@revenge-mod/modules/finders'
 import { withProps } from '@revenge-mod/modules/finders/filters'
 import { after, instead } from '@revenge-mod/patcher'
 import { patchPicker } from './picker'
@@ -53,23 +53,16 @@ export default plugin<{ jsonStorage: SettingsData }>({
 		configureStorage(jsonStorage)
 		await jsonStorage.get()
 		if (stopped) return
-		try {
-			let actions: GifActions | undefined
-			patches.push(
-				getModules(
-					withProps<GifActions>('fetchTrendingGIFs', 'trackSelectGIF'),
-					value => {
-						if (!stopped) actions = value
-					},
-				),
-			)
-			const http = lookupModule(
-				withProps<HttpModule>('HTTP', 'get', 'post', 'put', 'patch', 'del'),
-			)[0]?.HTTP
-			const viewStore = Stores.GIFPickerViewStore as unknown as GifViewStore
-
-			if (!http || !viewStore)
-				throw new Error('GIF Providers: native GIF modules unavailable')
+		let actions: GifActions | undefined
+		patches.push(
+			getModules(
+				withProps<GifActions>('fetchTrendingGIFs', 'trackSelectGIF'),
+				value => {
+					if (!stopped) actions = value
+				},
+			),
+		)
+		function install(http: HttpModule['HTTP'], viewStore: GifViewStore) {
 			const get: HttpRequest = http.get.bind(http)
 
 			setActive(true)
@@ -251,9 +244,25 @@ export default plugin<{ jsonStorage: SettingsData }>({
 				),
 			)
 			patches.push(storage.subscribe(cancelRequests))
-		} catch (error) {
-			cleanup()
-			throw error
 		}
+		patches.push(
+			getModules(
+				withProps<HttpModule>('HTTP', 'get', 'post', 'put', 'patch', 'del'),
+				module => {
+					if (stopped) return
+					patches.push(
+						getStore<GifViewStore>('GIFPickerViewStore', viewStore => {
+							if (stopped) return
+							try {
+								install(module.HTTP, viewStore)
+							} catch (error) {
+								cleanup()
+								plugin.reportError(error)
+							}
+						}),
+					)
+				},
+			),
+		)
 	},
 })
