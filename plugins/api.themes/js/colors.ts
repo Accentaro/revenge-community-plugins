@@ -14,11 +14,6 @@ interface SemanticColorContext {
 	gradient?: { theme?: string } | null
 }
 
-interface GradientVariant {
-	color: string
-	opacity?: number
-}
-
 /** Custom theme settings for backgrounds, mapped to their dimming. */
 export const ownGradientSettings = new WeakMap<object, number>()
 /** Resolved metadata of {@link ownGradientSettings}, mapped to their dimming. */
@@ -27,13 +22,25 @@ export const ownGradients = new WeakMap<object, number>()
 /** Theme's main background matching Discord's surfaces. */
 export const SurfaceColor = 'BACKGROUND_BASE_LOWER'
 
+/** Surfaces over backgrounds. */
+const DimmedSurfaces = new Set([
+	// TRANSLUCENT
+	// Server header
+	'BACKGROUND_BASE_LOW',
+	// Server list
+	'BACKGROUND_BASE_LOWEST',
+	// Channel list
+	'CHANNEL_BACKGROUND_DEFAULT',
+	'PANEL_BG',
+	// SOLID
+	'MOBILE_FLOATINGBAR_BACKGROUND',
+	'MOBILE_FLOATINGBAR_BACKGROUND_HIGHER',
+])
+
 // ../discord_common/js/packages/tokens/native.tsx
 interface TokensModule {
 	RawColor: Record<string, string>
-	SemanticColor: Record<
-		string,
-		{ gradient?: { light?: GradientVariant; dark?: GradientVariant } }
-	>
+	SemanticColor: Record<string, unknown>
 	default: {
 		/** Opaque tokens by semantic name, what `resolveSemanticColor` takes. `SemanticColor` holds their definitions. */
 		colors: Record<string, object>
@@ -75,15 +82,11 @@ export function patchColorTokens(cleanup: PluginCleanupApi) {
 						const gradient = context?.gradient
 						const dimming = gradient ? ownGradients.get(gradient) : undefined
 
-						if (gradient && dimming !== undefined) {
-							const dimmed = dimmedSurfaceOf(
-								tokens,
-								theme,
-								color,
-								context,
-								gradient,
-								dimming,
-							)
+						if (
+							dimming !== undefined &&
+							DimmedSurfaces.has(internal.getSemanticColorName(color))
+						) {
+							const dimmed = dimmedSurfaceOf(theme, context, dimming)
 							if (dimmed) return dimmed
 						}
 
@@ -115,31 +118,20 @@ export function patchColorTokens(cleanup: PluginCleanupApi) {
 	)
 }
 
-/** Mixes dimming toward the theme surfaces instead, scaled by {@link dimming}. */
+/** Theme surface color with {@link dimming} as its alpha. */
 function dimmedSurfaceOf(
-	tokens: TokensModule,
 	theme: ThemeBase,
-	color: object,
 	context: SemanticColorContext | undefined,
-	gradient: { theme?: string },
 	dimming: number,
 ) {
-	const { colors: tokenColors, internal } = tokens.default
-	const light = gradient.theme === 'light'
-	const variant =
-		tokens.SemanticColor[internal.getSemanticColorName(color)]?.gradient?.[
-			light ? 'light' : 'dark'
-		]
-	if (variant?.color !== (light ? 'WHITE_500' : 'BLACK_500')) return
-
-	const surface = internal.resolveSemanticColor(
-		theme,
-		tokenColors[SurfaceColor]!,
-		{ ...context, gradient: null },
-	)
+	const { colors: tokens, internal } = tokensModule!.default
+	const surface = internal.resolveSemanticColor(theme, tokens[SurfaceColor]!, {
+		...context,
+		gradient: null,
+	})
 	if (!/^#[0-9a-f]{6}/i.test(surface)) return
 
-	const alpha = Math.round((variant.opacity ?? 1) * dimming * 255)
+	const alpha = Math.round(dimming * 255)
 	return surface.slice(0, 7) + alpha.toString(16).padStart(2, '0')
 }
 

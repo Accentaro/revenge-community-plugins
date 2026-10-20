@@ -59,8 +59,6 @@ interface ThemedGradientProps {
 	wide?: boolean
 	/** Window height, past the container. */
 	tall?: boolean
-	/** Blends the gradient toward the base, behind surfaces without their own dimming overlay. */
-	mix?: boolean
 	style?: StyleProp<ViewStyle>
 	/** Specific gradient to draw, such as a theme picker swatch. */
 	gradientOverride?: unknown
@@ -88,10 +86,6 @@ const GradientWeight = {
 	dark: 0.12 + 0.2 * (BaseMix / 100),
 	light: 0.3 + 0.2 * (BaseMix / 100),
 }
-
-// ThemedGradient.tsx: mixed layers keep this much of the gradient color over black (white in light).
-// Ours mix toward the theme surface instead.
-const MixWeight = { dark: 0.3, light: 0.2 }
 
 let displaySettings:
 	| {
@@ -173,13 +167,8 @@ export function patchBackgrounds(
 						if (!background || props.gradientOverride != null)
 							return <Original {...props} />
 
-						// Mirrors Discord gradient rendering while overlays handle dimming
+						// Draws the image as is, including Discord's mix layers, since surfaces do all dimming
 						const light = theme === 'light'
-						const weight = props.mix
-							? 1 -
-								(1 - (light ? MixWeight.light : MixWeight.dark)) *
-									background.dimming
-							: 1
 
 						return (
 							<View
@@ -207,7 +196,7 @@ export function patchBackgrounds(
 										left: 0,
 										width,
 										height,
-										opacity: weight * (background.opacity ?? 1),
+										opacity: background.opacity ?? 1,
 									}}
 								/>
 							</View>
