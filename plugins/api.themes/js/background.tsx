@@ -59,6 +59,8 @@ interface ThemedGradientProps {
 	wide?: boolean
 	/** Window height, past the container. */
 	tall?: boolean
+	/** Matches the gradient under a dimmed surface, for layers drawn above one (channel list, home drawer mask). */
+	mix?: boolean
 	style?: StyleProp<ViewStyle>
 	/** Specific gradient to draw, such as a theme picker swatch. */
 	gradientOverride?: unknown
@@ -167,8 +169,9 @@ export function patchBackgrounds(
 						if (!background || props.gradientOverride != null)
 							return <Original {...props} />
 
-						// Draws the image as is, including Discord's mix layers, since surfaces do all dimming
+						// Mixed layers look like the image under a dimmed surface, which is the surface color at dimming over the image
 						const light = theme === 'light'
+						const weight = props.mix ? 1 - background.dimming : 1
 
 						return (
 							<View
@@ -196,7 +199,7 @@ export function patchBackgrounds(
 										left: 0,
 										width,
 										height,
-										opacity: background.opacity ?? 1,
+										opacity: weight * (background.opacity ?? 1),
 									}}
 								/>
 							</View>

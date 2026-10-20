@@ -31,10 +31,15 @@ const DimmedSurfaces = new Set([
 	'BACKGROUND_BASE_LOWEST',
 	// Channel list
 	'CHANNEL_BACKGROUND_DEFAULT',
-	'PANEL_BG',
 	// SOLID
 	'MOBILE_FLOATINGBAR_BACKGROUND',
 	'MOBILE_FLOATINGBAR_BACKGROUND_HIGHER',
+])
+
+/** Surfaces over mix layers, which already dim like {@link DimmedSurfaces}. */
+const ClearedSurfaces = new Set([
+	// Channel list
+	'PANEL_BG',
 ])
 
 // ../discord_common/js/packages/tokens/native.tsx
@@ -82,11 +87,15 @@ export function patchColorTokens(cleanup: PluginCleanupApi) {
 						const gradient = context?.gradient
 						const dimming = gradient ? ownGradients.get(gradient) : undefined
 
-						if (
-							dimming !== undefined &&
-							DimmedSurfaces.has(internal.getSemanticColorName(color))
-						) {
-							const dimmed = dimmedSurfaceOf(theme, context, dimming)
+						if (dimming !== undefined) {
+							const name = internal.getSemanticColorName(color)
+							const alpha = ClearedSurfaces.has(name)
+								? 0
+								: DimmedSurfaces.has(name)
+									? dimming
+									: undefined
+							const dimmed =
+								alpha !== undefined && dimmedSurfaceOf(theme, context, alpha)
 							if (dimmed) return dimmed
 						}
 
@@ -118,11 +127,11 @@ export function patchColorTokens(cleanup: PluginCleanupApi) {
 	)
 }
 
-/** Theme surface color with {@link dimming} as its alpha. */
+/** Theme surface color with {@link alpha}. */
 function dimmedSurfaceOf(
 	theme: ThemeBase,
 	context: SemanticColorContext | undefined,
-	dimming: number,
+	alpha: number,
 ) {
 	const { colors: tokens, internal } = tokensModule!.default
 	const surface = internal.resolveSemanticColor(theme, tokens[SurfaceColor]!, {
@@ -131,8 +140,12 @@ function dimmedSurfaceOf(
 	})
 	if (!/^#[0-9a-f]{6}/i.test(surface)) return
 
-	const alpha = Math.round(dimming * 255)
-	return surface.slice(0, 7) + alpha.toString(16).padStart(2, '0')
+	return (
+		surface.slice(0, 7) +
+		Math.round(alpha * 255)
+			.toString(16)
+			.padStart(2, '0')
+	)
 }
 
 /**
