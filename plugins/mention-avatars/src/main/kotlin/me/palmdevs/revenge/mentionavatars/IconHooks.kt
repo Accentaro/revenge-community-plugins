@@ -3,13 +3,15 @@ package me.palmdevs.revenge.mentionavatars
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PorterDuff
-import android.graphics.PorterDuffColorFilter
+import android.graphics.PorterDuffXfermode
 import android.graphics.drawable.Drawable
 import android.text.SpannableStringBuilder
 import android.text.Spanned
-import android.text.style.ForegroundColorSpan
+import android.text.TextPaint
+import android.text.style.CharacterStyle
+import android.text.style.MetricAffectingSpan
 import android.text.style.ReplacementSpan
-import android.widget.TextView
+import android.view.View
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import io.github.revenge.xposed.api.DexFinder
@@ -22,6 +24,7 @@ private const val SPAN_TEXT_VIEW = "com.facebook.drawee.span.SimpleDraweeSpanTex
 
 private const val SHAPE_MARKER = "#palmdevs.mention-avatars:"
 private const val ICON_EXTRA = "palmdevs.mention-avatars.icon"
+private const val LAYER_EXTRA = "palmdevs.mention-avatars.layer"
 
 // Relative to the icon size
 private const val ICON_GAP = 0.1f
@@ -74,8 +77,9 @@ internal class IconHooks(dexFinder: DexFinder) {
             }
         }
     } ?: error("DraweeSpanStringBuilder.draweeSpans not found")
+
     private val builderCallback = builderClass.declaredFields
-        .single { Drawable.Callback::class.java.isAssignableFrom(it.type) }
+        .single { Drawable.Callback::class.java.isAssignableFrom(it.type) && !View::class.java.isAssignableFrom(it.type) }
         .apply { isAccessible = true }
     private val drawableFields = HashMap<Class<*>, Field?>()
 
@@ -84,6 +88,42 @@ internal class IconHooks(dexFinder: DexFinder) {
     private val icons = WeakHashMap<ReplacementSpan, Boolean>()
 
     private val unhooks: List<XC_MethodHook.Unhook>
+    private var drawUnhook: XC_MethodHook.Unhook? = null
+
+    // Only used while drawing, on the main thread
+    private val tintPaint = TextPaint()
+    private val tintMode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+
+    // Glyphs use the text's color or gradient
+    private val glyphTint = object : XC_MethodHook() {
+        override fun beforeHookedMethod(param: MethodHookParam) {
+            val span = param.thisObject as ReplacementSpan
+            if (synchronized(icons) { icons[span] } != true) return
+            val bounds = drawableOf(span)?.bounds ?: return
+
+            val canvas = param.args[0] as Canvas
+            val x = param.args[4] as Float
+            val top = (param.args[5] as Int).toFloat()
+            val bottom = (param.args[7] as Int).toFloat()
+            param.setObjectExtra(LAYER_EXTRA, canvas.saveLayer(x, top, x + bounds.width(), bottom, null))
+        }
+
+        override fun afterHookedMethod(param: MethodHookParam) {
+            val layer = param.getObjectExtra(LAYER_EXTRA) as? Int? ?: return
+            val canvas = param.args[0] as Canvas
+
+            // Android skips non-metric spans when drawing replacements, so we need to apply them manually.
+            tintPaint.set(param.args[8] as Paint)
+            val text = param.args[1] as? Spanned
+            text?.getSpans(param.args[2] as Int, param.args[3] as Int, CharacterStyle::class.java)?.forEach {
+                if (it !is MetricAffectingSpan) it.updateDrawState(tintPaint)
+            }
+            tintPaint.style = Paint.Style.FILL
+            tintPaint.xfermode = tintMode
+            canvas.drawPaint(tintPaint)
+            canvas.restoreToCount(layer)
+        }
+    }
 
     init {
         val appendImage = dexFinder.findMethod {
@@ -111,9 +151,9 @@ internal class IconHooks(dexFinder: DexFinder) {
                     // The image is the last character appended
                     val builder = param.args[0] as SpannableStringBuilder
                     val end = builder.length
-                    synchronized(icons) {
-                        for (span in builder.getSpans(end - 1, end, ReplacementSpan::class.java))
-                            icons[span] = shape == "glyph"
+                    for (span in builder.getSpans(end - 1, end, ReplacementSpan::class.java)) {
+                        synchronized(icons) { icons[span] = shape == "glyph" }
+                        hookDraw(span.javaClass)
                     }
 
                     // Padding insets the image instead of adding space, so we add a [GapSpan] instead
@@ -126,23 +166,18 @@ internal class IconHooks(dexFinder: DexFinder) {
             // Attaches builder spans if view is attached
             XposedBridge.hookMethod(setBuilder, object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
-                    val view = param.thisObject as TextView
                     val builder = param.args[0] as? Spanned ?: return
                     val spans = synchronized(icons) {
-                        builder.getSpans(0, builder.length, ReplacementSpan::class.java)
-                            .mapNotNull { span -> icons[span]?.let { span to it } }
+                        builder.getSpans(0, builder.length, ReplacementSpan::class.java).filter { it in icons }
                     }
                     if (spans.isEmpty()) return
 
                     @Suppress("UNCHECKED_CAST")
                     val attached = builderSpans.get(builder) as MutableSet<Any>
                     val callback = builderCallback.get(builder) as Drawable.Callback
-                    for ((span, glyph) in spans) {
+                    for (span in spans) {
                         attached.add(span)
-                        val drawable = drawableOf(span) ?: continue
-                        drawable.callback = callback
-                        if (glyph) drawable.colorFilter =
-                            PorterDuffColorFilter(textColorAt(view, builder, builder.getSpanStart(span)), PorterDuff.Mode.SRC_IN)
+                        drawableOf(span)?.callback = callback
                     }
                 }
             }),
@@ -151,13 +186,22 @@ internal class IconHooks(dexFinder: DexFinder) {
 
     fun dispose() {
         for (unhook in unhooks) unhook.unhook()
+        synchronized(this) { drawUnhook?.unhook() }
         synchronized(icons) { icons.clear() }
     }
 
-    // The last span is the one drawn on top
-    private fun textColorAt(view: TextView, text: Spanned, index: Int) =
-        text.getSpans(index, index + 1, ForegroundColorSpan::class.java).lastOrNull()?.foregroundColor
-            ?: view.currentTextColor
+    // The image span class is only known once one is created
+    private fun hookDraw(spanClass: Class<*>) {
+        synchronized(this) {
+            if (drawUnhook != null) return
+            val int = Int::class.javaPrimitiveType
+            val draw = spanClass.getDeclaredMethod(
+                "draw", Canvas::class.java, CharSequence::class.java, int, int, Float::class.javaPrimitiveType, int, int, int,
+                Paint::class.java,
+            )
+            drawUnhook = XposedBridge.hookMethod(draw, glyphTint)
+        }
+    }
 
     private fun drawableOf(span: ReplacementSpan): Drawable? {
         val field = synchronized(drawableFields) {
