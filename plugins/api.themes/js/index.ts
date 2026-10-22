@@ -1,3 +1,4 @@
+import { patchBackgrounds } from './background'
 import { patchColorTokens, patchThemeContext } from './colors'
 import * as store from './store'
 
@@ -18,8 +19,16 @@ const SettingsPluginId = 'revenge.settings.themes'
 
 export default plugin({
 	preInit({ cleanup, decorate, plugin: self }) {
+		if (self.startedLate) {
+			self.requireReload()
+			// Cascade stop to all dependencies
+			self.stop()
+			return
+		}
+
 		patchColorTokens(cleanup)
 		patchThemeContext(cleanup)
+		patchBackgrounds(cleanup, self.startedLate)
 		loadSelections()
 
 		decorate(plugin => {
